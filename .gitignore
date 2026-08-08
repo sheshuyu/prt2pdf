@@ -1,0 +1,3 @@
+*.prt
+*.pdf
+__pycache__/
