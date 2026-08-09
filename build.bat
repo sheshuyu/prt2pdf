@@ -9,7 +9,8 @@ if exist dist rmdir /s /q dist
 if exist build rmdir /s /q build
 
 REM onedir: startup ~0.33s vs onefile ~2.1s (no archive extraction)
-pyinstaller --onedir --noconsole --name prt2pdf --icon=icon.ico --add-data "icon.ico;." --collect-all customtkinter prt2pdf_gui.py
+REM exclude: pywebview pulls in Qt backends it never uses on Windows
+pyinstaller --onedir --noconsole --name prt2pdf --icon=icon.ico --add-data "web;web" --add-data "icon.ico;." --exclude-module PyQt5 --exclude-module PyQt6 --exclude-module PySide2 --exclude-module PySide6 --exclude-module tkinter --exclude-module customtkinter --exclude-module cefpython3 prt2pdf_webview.py
 
 echo.
 if exist "dist\prt2pdf\prt2pdf.exe" (
