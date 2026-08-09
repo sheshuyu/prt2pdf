@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>HWAS → PDF</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<div id="app">
+
+  <div class="titlebar">
+    <h1>HWAS → PDF</h1>
+    <span class="sub">作业试卷转 A4 打印版</span>
+  </div>
+
+  <!-- 路径选择 -->
+  <div class="card paths">
+    <div class="path-row">
+      <label>作业文件夹</label>
+      <input :value="inputDir" readonly placeholder="选择存放 .prt 文件的目录">
+      <button class="btn-plain" @click="pickInput" :disabled="busy">浏览…</button>
+    </div>
+    <div class="path-row">
+      <label>输出目录</label>
+      <input :value="outputDir" readonly placeholder="默认与作业文件夹相同">
+      <button class="btn-plain" @click="pickOutput" :disabled="busy">浏览…</button>
+    </div>
+  </div>
+
+  <!-- 文件列表 -->
+  <div class="card list-wrap">
+    <div class="list-head">
+      <label class="cb">
+        <input type="checkbox" ref="selAll"
+               :checked="allChecked" @change="toggleAll" :disabled="!files.length || busy">
+        <span class="box">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+            <path d="M1.5 5.2L3.8 7.5L8.5 2.5" stroke="currentColor"
+                  stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+                  style="color: var(--on-accent)"/>
+          </svg>
+        </span>
+        <span>全选</span>
+      </label>
+      <button class="btn-ghost" @click="openLog">查看日志</button>
+      <span class="count" v-if="files.length">共 {{ files.length }} 个文件</span>
+    </div>
+
+    <div class="list" v-if="files.length">
+      <transition-group name="row" tag="div">
+        <div v-for="f in files" :key="f.filepath"
+             class="row" :class="{ bad: f.total === 0 }">
+          <label class="cb">
+            <input type="checkbox" v-model="f.sel" :disabled="busy">
+            <span class="box">
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                <path d="M1.5 5.2L3.8 7.5L8.5 2.5" stroke="currentColor"
+                      stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+                      style="color: var(--on-accent)"/>
+              </svg>
+            </span>
+          </label>
+          <span class="name" :title="f.filename">{{ f.filename }}</span>
+          <span class="secs" v-if="f.total">
+            选择 {{ f.section_counts[0] }} · 填空 {{ f.section_counts[1] }} · 解答 {{ f.section_counts[2] }}
+          </span>
+          <span class="secs st error" v-else>⚠ 无法识别</span>
+          <span class="title" :title="f.title">{{ f.title }}</span>
+          <span class="size">{{ kb(f.file_size) }}</span>
+          <span class="st" :class="f.stCls">{{ f.stTxt }}</span>
+        </div>
+      </transition-group>
+    </div>
+
+    <div class="empty" v-else>
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+        <path d="M4 6a2 2 0 012-2h4l2 2h6a2 2 0 012 2v9a2 2 0 01-2 2H6a2 2 0 01-2-2V6z"
+              stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>{{ emptyHint }}</span>
+    </div>
+  </div>
+
+  <!-- 底栏 -->
+  <div class="card footer">
+    <div class="track"><div class="fill" :style="{ width: pct + '%' }"></div></div>
+    <span class="pct">{{ counter }}</span>
+    <button class="btn-accent" @click="start" :disabled="busy">
+      {{ busy ? '转换中…' : '开始转换' }}
+    </button>
+  </div>
+
+  <div class="status" :class="stCls">
+    <span class="dot" v-if="busy"></span>
+    <span>{{ stTxt }}</span>
+  </div>
+
+</div>
+
+<script src="vue.global.js"></script>
+<script>
+const { createApp } = Vue
+
+const app = createApp({
+  data() {
+    return {
+      inputDir: '',
+      outputDir: '',
+      files: [],
+      busy: false,
+      done: 0,
+      total: 0,
+      stTxt: '选择作业文件夹开始',
+      stCls: '',
+      emptyHint: '尚未选择作业文件夹',
+    }
+  },
+
+  computed: {
+    pct() { return this.total ? (this.done / this.total) * 100 : 0 },
+    counter() { return this.total ? `${this.done}/${this.total}` : '' },
+    picked() { return this.files.filter(f => f.sel) },
+    allChecked() { return this.files.length > 0 && this.files.every(f => f.sel) },
+  },
+
+  watch: {
+    // 勾选变化时同步"全选"的半选态并刷新状态栏
+    picked() {
+      const el = this.$refs.selAll
+      if (el) {
+        const n = this.picked.length
+        el.indeterminate = n > 0 && n < this.files.length
+      }
+      if (!this.busy) this.refreshStatus()
+    },
+  },
+
+  methods: {
+    kb(b) { return (b / 1024).toFixed(0) + ' KB' },
+
+    say(txt, cls = '') { this.stTxt = txt; this.stCls = cls },
+
+    async pickInput() {
+      const p = await window.pywebview.api.pick_folder('选择作业文件夹')
+      if (p) await this.load(p)
+    },
+
+    async pickOutput() {
+      const p = await window.pywebview.api.pick_folder('选择 PDF 输出目录')
+      if (p) this.outputDir = p
+    },
+
+    async load(dir) {
+      this.inputDir = dir
+      this.done = this.total = 0
+      const list = await window.pywebview.api.scan_folder(dir)
+      this.files = list.map(f => ({
+        ...f,
+        sel: true,
+        stTxt: f.total === 0 ? '⚠ 损坏' : '',
+        stCls: f.total === 0 ? 'error' : '',
+      }))
+      if (!this.files.length) {
+        this.emptyHint = '该文件夹下没有 .prt 文件'
+        this.say('该文件夹下没有 .prt 文件', 'warning')
+      } else {
+        this.refreshStatus()
+      }
+    },
+
+    refreshStatus() {
+      const all = this.files.length
+      const n = this.picked.length
+      const bad = this.picked.filter(f => f.total === 0).length
+      if (!all) return
+      if (n === 0) this.say(`共 ${all} 个文件，未勾选任何文件`, 'warning')
+      else if (bad) this.say(`已选 ${n}/${all} 个，其中 ${bad} 个无法识别（将跳过）`, 'warning')
+      else if (n === all) this.say(`已选全部 ${all} 个文件`)
+      else this.say(`已选 ${n}/${all} 个文件`)
+    },
+
+    toggleAll(e) {
+      const v = e.target.checked
+      this.files.forEach(f => { f.sel = v })
+    },
+
+    async start() {
+      if (this.busy) return
+      const todo = this.picked.filter(f => f.total > 0)
+      if (!todo.length) {
+        this.say(this.picked.length ? '勾选的文件都无法识别' : '请至少勾选一个文件', 'warning')
+        return
+      }
+      const out = this.outputDir || this.inputDir
+      if (!out) { this.say('请先选择输出目录', 'warning'); return }
+      this.outputDir = out
+
+      // 清掉上一轮的行状态 (保留损坏标记)
+      this.files.forEach(f => {
+        if (f.total > 0) { f.stTxt = ''; f.stCls = '' }
+      })
+
+      this.busy = true
+      this.done = 0
+      this.total = todo.length
+      this.say('准备转换…', 'running')
+
+      await window.pywebview.api.convert(todo.map(f => f.filepath), out)
+    },
+
+    async openLog() {
+      const p = await window.pywebview.api.open_log()
+      if (p) this.say(`日志: ${p}`)
+    },
+
+    // ── 以下由 Python 后端通过 evaluate_js 调用 ──
+
+    onFileStart(filepath, filename, idx, total) {
+      const f = this.files.find(x => x.filepath === filepath)
+      if (f) { f.stTxt = '转换中'; f.stCls = 'running' }
+      this.say(`正在转换 (${idx + 1}/${total})：${filename}`, 'running')
+    },
+
+    onFileDone(filepath, txt, cls) {
+      const f = this.files.find(x => x.filepath === filepath)
+      if (f) { f.stTxt = txt; f.stCls = cls }
+    },
+
+    onProgress(done) { this.done = done },
+
+    onAllDone(ok, failed) {
+      this.busy = false
+      if (!failed.length) {
+        this.say(`✓ 全部完成，已生成 ${ok} 个 PDF`, 'success')
+      } else if (!ok) {
+        const names = failed.slice(0, 3).join('、')
+        const more = failed.length > 3 ? ` 等 ${failed.length} 个` : ''
+        this.say(`✗ 全部失败：${names}${more}（详见日志）`, 'error')
+      } else {
+        this.say(`完成 ${ok} 个，失败 ${failed.length} 个（详见日志）`, 'warning')
+      }
+    },
+
+    // 启动时由后端注入上次使用的路径
+    async restore(inDir, outDir) {
+      if (outDir) this.outputDir = outDir
+      if (inDir) await this.load(inDir)
+    },
+  },
+}).mount('#app')
+
+// 暴露给 Python 调用
+window.app = app
+
+window.addEventListener('pywebviewready', () => {
+  window.pywebview.api.on_ready()
+})
+</script>
+</body>
+</html>
