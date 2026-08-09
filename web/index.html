@@ -11,7 +11,6 @@
 
   <div class="titlebar">
     <h1>PRT → PDF</h1>
-    <span class="sub">作业试卷转 A4 打印版</span>
   </div>
 
   <!-- 路径选择 -->
@@ -25,6 +24,9 @@
       <label>输出目录</label>
       <input :value="outputDir" readonly placeholder="默认与作业文件夹相同">
       <button class="btn-plain" @click="pickOutput" :disabled="busy">浏览…</button>
+    </div>
+    <div class="path-hint">
+      PDF 会存到所选目录下的 <code>practice\</code> 文件夹
     </div>
   </div>
 
@@ -43,6 +45,7 @@
         </span>
         <span>全选</span>
       </label>
+      <button class="btn-ghost" @click="openOut" v-if="pdfDir">打开输出文件夹</button>
       <button class="btn-ghost" @click="openLog">查看日志</button>
       <span class="count" v-if="files.length">共 {{ files.length }} 个文件</span>
     </div>
@@ -107,6 +110,7 @@ const app = createApp({
     return {
       inputDir: '',
       outputDir: '',
+      pdfDir: '',          // 实际写入 PDF 的目录 (输出目录/practice)
       files: [],
       busy: false,
       done: 0,
@@ -214,6 +218,11 @@ const app = createApp({
       if (p) this.say(`日志: ${p}`)
     },
 
+    async openOut() {
+      const p = await window.pywebview.api.open_output()
+      if (!p) this.say('还没有生成过 PDF', 'warning')
+    },
+
     // ── 以下由 Python 后端通过 evaluate_js 调用 ──
 
     onFileStart(filepath, filename, idx, total) {
@@ -229,10 +238,18 @@ const app = createApp({
 
     onProgress(done) { this.done = done },
 
+    // 后端建好 practice 子文件夹后告知实际路径
+    onOutDir(dir) { this.pdfDir = dir },
+
+    onFatal(msg) {
+      this.busy = false
+      this.say(msg, 'error')
+    },
+
     onAllDone(ok, failed) {
       this.busy = false
       if (!failed.length) {
-        this.say(`✓ 全部完成，已生成 ${ok} 个 PDF`, 'success')
+        this.say(`✓ 全部完成，${ok} 个 PDF 已存入 practice 文件夹`, 'success')
       } else if (!ok) {
         const names = failed.slice(0, 3).join('、')
         const more = failed.length > 3 ? ` 等 ${failed.length} 个` : ''

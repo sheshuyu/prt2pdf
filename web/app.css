@@ -179,6 +179,20 @@ body::before {
   box-shadow: 0 0 0 3px rgba(251, 140, 0, .28);
 }
 
+.path-hint {
+  padding-left: 78px;
+  margin-top: -4px;
+  font-size: 11px;
+  color: var(--fg-tertiary);
+}
+.path-hint code {
+  font-family: 'Consolas', 'Cascadia Mono', monospace;
+  font-size: 10.5px;
+  background: var(--bg-inset);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
 /* ── 按钮 ── */
 button {
   font: inherit;

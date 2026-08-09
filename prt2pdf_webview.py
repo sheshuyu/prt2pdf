@@ -25,6 +25,16 @@ CONFIG_FILE = os.path.join(CONFIG_DIR, 'config.json')
 WIN_W, WIN_H = 910, 610
 WIN_MIN = (620, 460)
 
+# HWAS 默认的练习题目录。用 %LOCALAPPDATA% 而非硬编码用户名，
+# 展开后是 C:\Users\<当前用户>\AppData\Local\Programs\hwas\practice
+DEFAULT_PRACTICE_DIR = os.path.join(
+    os.environ.get('LOCALAPPDATA', os.path.expanduser(r'~\AppData\Local')),
+    'Programs', 'hwas', 'practice',
+)
+
+# PDF 统一放到输出目录下的这个子文件夹，不与 .prt 混在一起
+OUT_SUBDIR = 'practice'
+
 
 def resource_path(rel):
     """资源路径，兼容 PyInstaller 打包后的临时解压目录."""
@@ -33,13 +43,6 @@ def resource_path(rel):
 
 
 def center_pos(w, h):
-    """算出窗口居中坐标，返回 (x, y)；失败返回 (None, None) 交给系统定位。
-
-    pywebview 文档说省略 x/y 会自动居中，实测 winforms 后端并不会
-    (910x610 窗口落在 +138+161，居中应为 +833+434)，所以自己算。
-
-    用 SPI_GETWORKAREA 而非全屏尺寸：工作区已排除任务栏，纵向不必再手动补偿。
-    """
     import ctypes
     from ctypes import wintypes
 
@@ -82,17 +85,21 @@ class Api:
         # 公开属性来生成 JS 绑定, 遇到 window 对象会一路走进 .NET 属性树直到
         # 递归溢出 (util.py:189 会跳过 _ 开头的名字)
         self._window = None      # webview.start() 前由 main() 注入
+        self._pdf_dir = None     # 上次转换实际写入的目录
         self.cfg = load_config()
         self.busy = False
 
     # ── 供前端调用 ──────────────────────────────────────────
 
     def on_ready(self):
-        """前端 pywebviewready 后回调，恢复上次使用的路径."""
+        """前端 pywebviewready 后回调，恢复上次使用的路径。
+
+        作业文件夹优先用上次选的，没有记录再退到 HWAS 默认的 practice 目录。
+        """
         in_dir = self.cfg.get('last_input_dir', '')
         out_dir = self.cfg.get('last_output_dir', '')
         if not os.path.isdir(in_dir):
-            in_dir = ''
+            in_dir = DEFAULT_PRACTICE_DIR if os.path.isdir(DEFAULT_PRACTICE_DIR) else ''
         if out_dir and not os.path.isdir(out_dir):
             out_dir = ''
         if in_dir or out_dir:
@@ -144,6 +151,17 @@ class Api:
         except OSError:
             return None
 
+    def open_output(self):
+        """打开上次转换实际写入的 practice 文件夹."""
+        d = getattr(self, '_pdf_dir', None)
+        if not d or not os.path.isdir(d):
+            return None
+        try:
+            os.startfile(d)
+            return d
+        except OSError:
+            return None
+
     # ── 内部 ───────────────────────────────────────────────
 
     def _js(self, tmpl, *args):
@@ -162,10 +180,26 @@ class Api:
         total = len(filepaths)
         ok, failed = 0, []
 
+        # PDF 收进 <输出目录>/practice/。已经选中 practice 目录时不再套一层。
+        if os.path.basename(os.path.normpath(output_dir)).lower() == OUT_SUBDIR:
+            pdf_dir = output_dir
+        else:
+            pdf_dir = os.path.join(output_dir, OUT_SUBDIR)
+
+        try:
+            os.makedirs(pdf_dir, exist_ok=True)
+        except OSError as e:
+            self.busy = False
+            self._js('app.onFatal(?)', f'无法创建输出文件夹: {e}')
+            return
+
+        self._pdf_dir = pdf_dir
+        self._js('app.onOutDir(?)', pdf_dir)
+
         try:
             for i, fp in enumerate(filepaths):
                 name = os.path.basename(fp)
-                out = os.path.join(output_dir, os.path.splitext(name)[0] + '.pdf')
+                out = os.path.join(pdf_dir, os.path.splitext(name)[0] + '.pdf')
 
                 self._js('app.onFileStart(?, ?, ?, ?)', fp, name, i, total)
 
