@@ -14,19 +14,16 @@
 - 📝 **日志与路径记忆** — 都存在 `C:\Users\<用户名>\AppData\Roaming\prt2pdf\`，界面上可直接打开
 
 ## 使用指北
+1. 双击运行 `prt2pdf.exe`
+2. 启动后自动定位默认 HWAS 的练习题目录， 默认为 `C:\Users\<用户名>\AppData\Local\Programs\hwas\practice`。 
 
-1. 启动后自动定位默认 HWAS 的练习题目录，无需手动选择：
+   点击「浏览」可以更改practice文件夹路径。 
+   
+   右键hwas图标，点击打开文件所在位置，即可找到practice文件夹
 
-   ```
-   %LOCALAPPDATA%\Programs\hwas\practice
-   ```
-
-   展开是 `C:\Users\<用户名>\AppData\Local\Programs\hwas\practice`。
-   目录不存在或想转别处的文件，点击「浏览」更改。
-
-2. 勾选要转换的文件（或全选）
-3. 选择 PDF 输出目录（留空则与作业文件夹相同）
-4. 点击「开始转换」
+3. 勾选要转换的文件（或全选）
+4. 选择 PDF 输出目录（留空则与作业文件夹相同）
+5. 点击「开始转换」
 
 PDF 统一存到所选输出目录下的 `practice\` 子文件夹：
 
@@ -50,9 +47,9 @@ PDF 统一存到所选输出目录下的 `practice\` 子文件夹：
 
 ### 打包
 
-双击运行**build.bat**自动打包
+- 双击运行 `build.bat` 自动打包
 
-产物是 `dist\prt2pdf\` 整个目录，分发时一起拷走。
+- 产物是 `dist\prt2pdf\` 整个目录，分发时一起拷走。
 
 
 ## 项目结构
