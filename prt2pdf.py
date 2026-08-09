@@ -56,12 +56,20 @@ MARGIN = 50
 # 间距
 GAP_CHOICE  =  60   # 选择题之间
 GAP_FILL    =  60   # 填空题之间
-GAP_COMP    = 550   # 解答题之间
+GAP_COMP    = 600   # 解答题之间
 GAP_SECTION = 100   # 章节标题上
 
 # 间距压缩底线: 实际间距不低于目标间距的这个比例
 # 低于此比例说明"这页塞不下了", 整个块移到下一页
-MIN_GAP_RATIO = 0.2
+#
+# 分题型设置, 因为压缩的代价不一样:
+#   选择/填空的间距本来就小 (60px), 压到 20% = 12px 只是排得紧些, 不影响做题
+#   解答题的间距是留给写过程的 (600px), 压得太狠就不够写了, 所以底线抬高,
+#   宁可整题挪到下一页也要保住书写空间
+MIN_GAP_RATIO_CHOICE = 0.5   # 选择题
+MIN_GAP_RATIO_FILL   = 0.5   # 填空题
+MIN_GAP_RATIO_COMP   = 0.9   # 解答题
+MIN_GAP_RATIO_TITLE  = 0.5   # 章节标题后 (标题和首题贴太近不好看)
 
 # 章节标题样式
 TITLE_FONT_PATH = 'C:/Windows/Fonts/simhei.ttf'   # 黑体, 清晰醒目
@@ -271,6 +279,20 @@ def plan_gaps(meta):
     return gaps
 
 
+def min_gap_ratio(m):
+    """取该块的间距压缩底线, 由所属题型决定.
+
+    m 是 meta 字典, 章节标题块带 is_title=True.
+    """
+    if m.get('is_title'):
+        return MIN_GAP_RATIO_TITLE
+    if m['section'] == 'comp':
+        return MIN_GAP_RATIO_COMP
+    if m['section'] == 'fill':
+        return MIN_GAP_RATIO_FILL
+    return MIN_GAP_RATIO_CHOICE
+
+
 def make_section_title(text, width, top_padding=0):
     """创建章节标题图片.
 
@@ -377,7 +399,7 @@ def render_pdf(images, meta, title, section_counts, output_path):
         full_block = need_h + gap_after
         remaining = page_max - y
         avail_for_gap = remaining - need_h
-        min_gap = int(gap_after * MIN_GAP_RATIO)
+        min_gap = int(gap_after * min_gap_ratio(m))
 
         # 情况1: 整块放得下 → 全额间距
         if y + full_block <= page_max:
@@ -414,8 +436,8 @@ def render_pdf(images, meta, title, section_counts, output_path):
             y += full_block
             page_no += 1
             tag = '标题' if is_title else f"第{m['idx']+1}题"
-            logger.debug(f"块迁移 {page_no}: {tag} "
-                         f"剩余{avail_for_gap}px < 底线{min_gap}px, 整块移到新页")
+            logger.debug(f"块迁移 {page_no}: {tag}({reason}) 剩余{avail_for_gap}px "
+                         f"< 底线{min_gap}px({min_gap_ratio(m):.0%}), 整块移到新页")
 
     pages.append(page)
 
