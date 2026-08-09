@@ -251,6 +251,7 @@ button:disabled { cursor: default; opacity: .5; }
 }
 .cb input { position: absolute; opacity: 0; pointer-events: none; }
 .cb .box {
+  position: relative;      /* 供半选横线 (.box::after) 定位 */
   width: 16px; height: 16px;
   border-radius: 4.5px;
   border: 1.5px solid var(--fg-tertiary);
@@ -264,10 +265,25 @@ button:disabled { cursor: default; opacity: .5; }
 }
 .cb .box svg { opacity: 0; transform: scale(.4); transition: all .18s var(--spring); }
 .cb input:checked + .box svg { opacity: 1; transform: scale(1); }
+
+/* 半选 (部分勾选): 显示横线, 而非空的橙色方块 */
 .cb input:indeterminate + .box {
   background: var(--accent);
   border-color: var(--accent);
 }
+.cb .box::after {
+  content: '';
+  position: absolute;
+  width: 8px; height: 2px;
+  border-radius: 1px;
+  background: var(--on-accent);
+  opacity: 0;
+  transform: scale(.4);
+  transition: all .18s var(--spring);
+}
+.cb input:indeterminate + .box::after { opacity: 1; transform: scale(1); }
+/* 半选优先于全选: indeterminate 为真时不显示勾 */
+.cb input:indeterminate + .box svg { opacity: 0; transform: scale(.4); }
 
 /* ── 文件列表 ── */
 .list-wrap {

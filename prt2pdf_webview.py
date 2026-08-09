@@ -32,6 +32,31 @@ def resource_path(rel):
     return os.path.join(base, rel)
 
 
+def center_pos(w, h):
+    """算出窗口居中坐标，返回 (x, y)；失败返回 (None, None) 交给系统定位。
+
+    pywebview 文档说省略 x/y 会自动居中，实测 winforms 后端并不会
+    (910x610 窗口落在 +138+161，居中应为 +833+434)，所以自己算。
+
+    用 SPI_GETWORKAREA 而非全屏尺寸：工作区已排除任务栏，纵向不必再手动补偿。
+    """
+    import ctypes
+    from ctypes import wintypes
+
+    class RECT(ctypes.Structure):
+        _fields_ = [('left', wintypes.LONG), ('top', wintypes.LONG),
+                    ('right', wintypes.LONG), ('bottom', wintypes.LONG)]
+
+    try:
+        r = RECT()
+        if not ctypes.windll.user32.SystemParametersInfoW(0x0030, 0, ctypes.byref(r), 0):
+            return None, None
+        return (r.left + max(0, (r.right - r.left - w) // 2),
+                r.top + max(0, (r.bottom - r.top - h) // 2))
+    except Exception:
+        return None, None
+
+
 def load_config():
     try:
         with open(CONFIG_FILE, encoding='utf-8') as f:
@@ -168,11 +193,13 @@ def main():
     setup_logging(log_dir=CONFIG_DIR)
 
     api = Api()
+    x, y = center_pos(WIN_W, WIN_H)
     window = webview.create_window(
         'PRT → PDF 转换工具',
         resource_path(os.path.join('web', 'index.html')),
         js_api=api,
         width=WIN_W, height=WIN_H,
+        x=x, y=y,
         min_size=WIN_MIN,
         background_color='#F2F2F7',
     )
