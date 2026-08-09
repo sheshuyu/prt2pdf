@@ -393,13 +393,30 @@ def render_pdf(images, meta, title, section_counts, output_path):
     page_max = A4_H - MARGIN
     page_no = 1
 
-    for img, m, (gap_after, reason) in items:
+    for i, (img, m, (gap_after, reason)) in enumerate(items):
         is_title = m.get('is_title', False)
         need_h = img.height
         full_block = need_h + gap_after
         remaining = page_max - y
         avail_for_gap = remaining - need_h
         min_gap = int(gap_after * min_gap_ratio(m))
+
+        # 标题 + 首题必须同页: 标题之后要能同时装下首题图片和它的最低间距,
+        # 否则首题会被 Case 4 整块迁移到下一页, 标题又孤零零留在页尾
+        if is_title and i + 1 < len(items):
+            next_img, next_m, (next_gap, _) = items[i + 1]
+            next_need = next_img.height
+            next_min_gap = int(next_gap * min_gap_ratio(next_m))
+            after_title = page_max - (y + need_h + gap_after)
+            # 连首题的压缩底线都满足不了 → 标题迁至新页
+            if after_title < next_need + next_min_gap and y > MARGIN:
+                pages.append(page)
+                page = Image.new('RGB', (A4_W, A4_H), 'white')
+                y = MARGIN
+                page_no += 1
+                remaining = page_max - y
+                avail_for_gap = remaining - need_h
+                logger.debug(f"换页 {page_no}: 标题迁至新页, 确保与首题同页")
 
         # 情况1: 整块放得下 → 全额间距
         if y + full_block <= page_max:

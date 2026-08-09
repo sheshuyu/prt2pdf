@@ -94,4 +94,4 @@ PDF 统一存到所选输出目录下的 `practice\` 子文件夹：
 
 ## 许可
 
-仅供个人学习使用，禁止商业用途。
+GNU General Public License v3.0 — 详见 [LICENSE](LICENSE)
