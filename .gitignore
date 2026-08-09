@@ -1,3 +1,12 @@
 *.prt
 *.pdf
 __pycache__/
+dist/
+build/
+*.spec
+*.log
+icon_sizes_preview.png
+png2ico.py
+icon.ico
+icon.png
+build.bat

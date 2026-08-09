@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-HWAS .prt 转 PDF 工具 (v4)
+HWAS .prt 转 PDF 核心库 (v5)
 解析 .prt 文件中的题目图片，按题型分章节智能排版生成 A4 PDF。
 
-用法: python prt2pdf.py <文件.prt>
-输出: 同目录下生成同名 .pdf 文件 (A4 页面)
+供 GUI 调用。日志路径由调用方通过 setup_logging(log_dir=...) 指定，
+GUI 传入 %APPDATA%\prt2pdf\ (与 config.json 同目录)。
 
 格式说明:
   .prt 头部 63 字节:
@@ -18,8 +18,32 @@ HWAS .prt 转 PDF 工具 (v4)
 import sys
 import struct
 import os
+import logging
 from io import BytesIO
 from PIL import Image
+
+logger = logging.getLogger('prt2pdf')
+
+
+def setup_logging(log_dir=None):
+    """配置日志输出到文件。目录不存在时自动创建，失败则静默降级。"""
+    if log_dir is None:
+        log_dir = os.path.dirname(os.path.abspath(sys.argv[0])) if getattr(sys, 'frozen', False) else os.getcwd()
+
+    try:
+        os.makedirs(log_dir, exist_ok=True)
+        handler = logging.FileHandler(os.path.join(log_dir, 'prt2pdf.log'), encoding='utf-8')
+    except OSError:
+        # 无法写日志文件时不影响主程序运行
+        handler = logging.NullHandler()
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s [%(levelname)s] %(message)s',
+        datefmt='%H:%M:%S',
+        handlers=[handler],
+        force=True,
+    )
 
 # ═══════════════════════════════════════════════════════════════
 #  可调参数
@@ -37,7 +61,7 @@ GAP_SECTION = 100   # 章节标题上
 
 # 间距压缩底线: 实际间距不低于目标间距的这个比例
 # 低于此比例说明"这页塞不下了", 整个块移到下一页
-MIN_GAP_RATIO = 0.4
+MIN_GAP_RATIO = 0.2
 
 # 章节标题样式
 TITLE_FONT_PATH = 'C:/Windows/Fonts/simhei.ttf'   # 黑体, 清晰醒目
@@ -61,7 +85,7 @@ def parse_prt(filepath):
         data = f.read()
 
     fname = os.path.basename(filepath)
-    print(f"[*] {fname}  ({len(data):,} bytes)")
+    logger.info(f"解析: {fname}  ({len(data):,} bytes)")
 
     # ── 头部 ──
     png_start = data.find(PNG_MAGIC)
@@ -69,7 +93,7 @@ def parse_prt(filepath):
 
     # 验证魔数
     if header[:7] != b'qyhisme':
-        print(f"  [!] 魔数不匹配: {header[:7]!r}")
+        logger.warning(f"魔数不匹配: {header[:7]!r}")
 
     # 题型分布: [cntA, cntB, cntC] = [选择题数, 填空题数, 解答题数]
     section_counts = list(header[21:24])
@@ -84,15 +108,52 @@ def parse_prt(filepath):
     images, meta = _extract(data, answer_counts, section_counts)
 
     total = sum(section_counts)
-    print(f"[*] {len(images)} 张题目图片")
+    logger.info(f"{len(images)} 张题目图片")
     if title:
-        print(f"[*] 标题: {title}")
-    print(f"[*] 题型分布: 选择 {section_counts[0]} 道, "
-          f"填空 {section_counts[1]} 道, 解答 {section_counts[2]} 道 "
-          f"(共 {total} 道)")
-    print(f"[*] 每题答案数: {answer_counts[:total]}")
+        logger.info(f"标题: {title}")
+    logger.info(f"题型分布: 选择 {section_counts[0]} 道, "
+                f"填空 {section_counts[1]} 道, 解答 {section_counts[2]} 道 "
+                f"(共 {total} 道)")
+    logger.debug(f"每题答案数: {answer_counts[:total]}")
 
     return images, meta, title, section_counts
+
+
+def quick_scan(filepath):
+    """快速扫描 .prt 文件头，不解压 PNG。
+
+    返回 dict: {filename, section_counts, title, total, file_size}
+    失败返回 None。
+    """
+    try:
+        with open(filepath, 'rb') as f:
+            data = f.read()
+
+        png_start = data.find(PNG_MAGIC)
+        if png_start == -1:
+            return None
+
+        header = data[:png_start]
+        if header[:7] != b'qyhisme':
+            return None
+
+        section_counts = list(header[21:24])
+        total = sum(section_counts)
+
+        # 尾部标题
+        last_end = _find_last_png_end(data)
+        title = _decode_title(data[last_end:])
+
+        return {
+            'filename': os.path.basename(filepath),
+            'filepath': filepath,
+            'section_counts': section_counts,
+            'title': title or '',
+            'total': total,
+            'file_size': len(data),
+        }
+    except Exception:
+        return None
 
 
 def _find_last_png_end(data):
@@ -186,7 +247,7 @@ def _extract(data, answer_counts, section_counts):
                     })
                     idx += 1
                 except Exception as e:
-                    print(f"  [!] 第 {idx + 1} 张损坏: {e}")
+                    logger.warning(f"第 {idx + 1} 张损坏: {e}")
                     idx += 1
                 break
         p = pos
@@ -285,21 +346,21 @@ def render_pdf(images, meta, title, section_counts, output_path):
 
         items.append((img, m, gap_info))
 
-    # ── 排版计划表 ──
+    # ── 排版计划表 (写入日志) ──
     sec_short = ['选择', '填空', '解答']
 
-    print(f"\n{'─' * 68}")
+    logger.debug("─" * 50)
     for si, (start, cnt) in enumerate(zip(section_starts, section_counts)):
         if cnt > 0:
-            print(f"── {section_labels[si]} ({cnt}道) " + "─" * 50)
+            logger.debug(f"── {section_labels[si]} ({cnt}道) " + "─" * 30)
         for i in range(start, start + cnt):
             m = meta[i]
             img = scaled[i]
             gap, reason = gaps[i]
             ac = m['answer_count']
-            print(f"  [{i:2d}] {m['w']:4d}x{m['h']:<4d} -> "
-                  f"{img.width:4d}x{img.height:<5d} {sec_short[si]:>4s}"
-                  f"  答案×{ac}   后 {gap:3d}px  {reason}")
+            logger.debug(f"  [{i:2d}] {m['w']:4d}x{m['h']:<4d} -> "
+                         f"{img.width:4d}x{img.height:<5d} {sec_short[si]:>4s}"
+                         f"  答案×{ac}   后 {gap:3d}px  {reason}")
 
     # ── 排版到页面 ──
     # 核心概念: 标题图片也是块, 和题目图片一样参与排版,
@@ -332,17 +393,17 @@ def render_pdf(images, meta, title, section_counts, output_path):
             y += full_block
             page_no += 1
             if is_title:
-                print(f"  >> 换页 {page_no}: 标题 放不下 ({need_h}px > {remaining}px)")
+                logger.debug(f"换页 {page_no}: 标题 放不下 ({need_h}px > {remaining}px)")
             else:
-                print(f"  >> 换页 {page_no}: 第{m['idx']+1}题 图片放不下 ({need_h}px > {remaining}px)")
+                logger.debug(f"换页 {page_no}: 第{m['idx']+1}题 图片放不下 ({need_h}px > {remaining}px)")
 
         # 情况3: 图放得下但整块放不下 → 压缩间距收尾
         elif avail_for_gap >= min_gap:
             page.paste(img, (MARGIN, y))
             y += need_h + avail_for_gap
             tag = '标题' if is_title else f"第{m['idx']+1}题"
-            print(f"  >> 页尾: {tag} 间距 {gap_after}→{avail_for_gap}px "
-                  f"({(1 - avail_for_gap/gap_after)*100:.0f}%压缩)")
+            logger.debug(f"页尾: {tag} 间距 {gap_after}→{avail_for_gap}px "
+                         f"({(1 - avail_for_gap/gap_after)*100:.0f}%压缩)")
 
         # 情况4: 压缩后间距低于底线 → 整块移到下一页
         else:
@@ -353,8 +414,8 @@ def render_pdf(images, meta, title, section_counts, output_path):
             y += full_block
             page_no += 1
             tag = '标题' if is_title else f"第{m['idx']+1}题"
-            print(f"  >> 块迁移 {page_no}: {tag} "
-                  f"剩余{avail_for_gap}px < 底线{min_gap}px, 整块移到新页")
+            logger.debug(f"块迁移 {page_no}: {tag} "
+                         f"剩余{avail_for_gap}px < 底线{min_gap}px, 整块移到新页")
 
     pages.append(page)
 
@@ -362,48 +423,9 @@ def render_pdf(images, meta, title, section_counts, output_path):
     pages[0].save(output_path, 'PDF', save_all=True,
                   append_images=pages[1:], resolution=150.0)
 
-    # ── 统计 ──
-    usable_h = A4_H - 2 * MARGIN
-    content_h = sum(img.height for img in scaled)
-    title_h = sum(it[0].height for it in items if it[1].get('is_title'))
-    gap_h = sum(g[0] for g in gaps)
-    gap_h += GAP_AFTER_TITLE * len(section_labels)  # 标题后的间距
-    total_h = content_h + gap_h
-
-    print(f"{'─' * 68}")
+    # ── 统计 (写入日志) ──
     counts = [sum(1 for m in meta if m['section'] == s) for s in SECTION_NAMES]
-    print(f"  {len(pages)} 页 A4 | "
-          f"选择 {counts[0]} 填空 {counts[1]} 解答 {counts[2]} | "
-          f"内容 {content_h}px + 标题 {title_h}px + 间距 {gap_h}px = {total_h}px "
-          f"(每页 {usable_h}px)")
-    print(f"[*] PDF -> {output_path}")
+    logger.info(f"PDF -> {output_path}  |  {len(pages)} 页 A4  |  "
+                f"选择 {counts[0]} 填空 {counts[1]} 解答 {counts[2]}")
 
-
-def main():
-    if len(sys.argv) < 2:
-        print("HWAS .prt → PDF v4")
-        print("用法: python prt2pdf.py <文件.prt>")
-        print()
-        print("间距常量 (编辑脚本可调):")
-        print(f"  GAP_CHOICE  = {GAP_CHOICE}px   选择题之间")
-        print(f"  GAP_FILL    = {GAP_FILL}px   填空题之间")
-        print(f"  GAP_COMP    = {GAP_COMP}px   解答题之间 (留写过程空间)")
-        print(f"  GAP_SECTION = {GAP_SECTION}px   章节切换")
-        sys.exit(1)
-
-    prt = sys.argv[1]
-    if not os.path.exists(prt):
-        print(f"错误: {prt} 不存在")
-        sys.exit(1)
-
-    images, meta, title, section_counts = parse_prt(prt)
-    if not images:
-        print("错误: 无图片")
-        sys.exit(1)
-
-    out = os.path.splitext(prt)[0] + '.pdf'
-    render_pdf(images, meta, title, section_counts, out)
-
-
-if __name__ == '__main__':
-    main()
+    return len(pages)
