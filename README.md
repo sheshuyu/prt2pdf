@@ -20,6 +20,54 @@ HWAS 软件 `.prt` 作业试卷 → A4 PDF 转换工具。
 3. 选择 PDF 输出目录
 4. 点击「转换选中文件」
 
+## 开发
+
+```bash
+pip install pillow customtkinter
+python prt2pdf_gui.py
+```
+
+### 打包
+
+```bash
+build.bat
+```
+
+产物是 `dist\prt2pdf\` 整个目录，分发时一起拷走。
+
+用 onedir 而非 onefile：onefile 每次启动都要把压缩包解压到 `%TEMP%`，实测约 2.1s；
+onedir 免去这一步，约 0.33s。代价是发布形式从单文件变成一个文件夹。
+
+## 项目结构
+
+| 文件 | 说明 |
+|------|------|
+| `prt2pdf.py` | 核心库：解析 `.prt`、排版、生成 PDF。不依赖任何 GUI |
+| `prt2pdf_gui.py` | CustomTkinter 界面 |
+| `build.bat` | PyInstaller 打包脚本 |
+| `icon.ico` | 应用图标（窗口 + EXE，含 16~256px 六种尺寸） |
+
+核心库与界面完全解耦，`prt2pdf.py` 只暴露四个函数：
+`setup_logging` / `quick_scan` / `parse_prt` / `render_pdf`。换界面框架不需要动它。
+
+## 可调参数
+
+编辑 `prt2pdf.py` 顶部的常量：
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `GAP_CHOICE` | 60px | 选择题之间间距 |
+| `GAP_FILL` | 60px | 填空题之间间距 |
+| `GAP_COMP` | 550px | 解答题之间间距（留写过程空间） |
+| `GAP_SECTION` | 100px | 章节标题上方留白 |
+| `GAP_AFTER_TITLE` | 20px | 标题与本节首题的间距 |
+| `MIN_GAP_RATIO` | 0.4 | 间距压缩底线，低于此比例则整块移到下一页 |
+| `TITLE_FONT_SIZE` | 30 | 章节标题字号 |
+| `A4_W` / `A4_H` | 1240×1754 | A4 画布尺寸（150 DPI） |
+| `MARGIN` | 50px | 页边距 |
+
+界面配色改 `prt2pdf_gui.py` 顶部的 `ORANGE` / `CLR_*` 常量，每个是 `[浅色, 深色]` 两个值。
+
 ## 文件存放位置
 
 程序不在 EXE 旁边写任何文件（EXE 可能放在无写权限的目录），配置和日志统一放在：

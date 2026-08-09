@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-prt2pdf GUI — HWAS .prt → PDF 图形界面
+prt2pdf GUI — .prt → PDF 图形界面
 CustomTkinter 实现，支持批量选择和转换。
 """
 
@@ -89,7 +89,7 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title('HWAS → PDF 转换工具')
+        self.title('PRT → PDF 转换工具')
         self._center_window(910, 610)
         self.minsize(580, 420)
 
