@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-prt2pdf — HWAS .prt → A4 PDF 转换工具 (pywebview 界面)
+prt2pdf — .prt → A4 PDF 转换工具 (pywebview 界面)
 
 前端在 web/ 目录 (Vue 3 + CSS)，本文件是 Python 后端：
   · Api 类的方法自动暴露为 window.pywebview.api.xxx()，前端 await 调用
@@ -169,7 +169,7 @@ def main():
 
     api = Api()
     window = webview.create_window(
-        'HWAS → PDF 转换工具',
+        'PRT → PDF 转换工具',
         resource_path(os.path.join('web', 'index.html')),
         js_api=api,
         width=WIN_W, height=WIN_H,

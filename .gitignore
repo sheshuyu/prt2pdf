@@ -7,6 +7,4 @@ build/
 *.log
 icon_sizes_preview.png
 png2ico.py
-icon.ico
 icon.png
-build.bat
