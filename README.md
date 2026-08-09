@@ -59,7 +59,7 @@ PDF 统一存到所选输出目录下的 `practice\` 子文件夹：
 | `prt2pdf.py` | 核心库：解析 `.prt`、排版、生成 PDF。不依赖任何 GUI |
 | `prt2pdf_webview.py` | 界面后端：`Api` 类的方法暴露给前端调用 |
 | `web/index.html` | 前端：Vue 3 应用 |
-| `web/app.css` | 样式：Apple 风格，CSS 变量管理主题色 |
+| `web/app.css` | 样式：CSS 变量管理主题色 |
 | `build.bat` | PyInstaller 打包脚本 |
 
 核心库与界面完全解耦，`prt2pdf.py` 只暴露四个函数：
@@ -94,4 +94,4 @@ PDF 统一存到所选输出目录下的 `practice\` 子文件夹：
 
 ## 许可
 
-MIT
+仅供个人学习使用，禁止商业用途。
