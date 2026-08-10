@@ -54,14 +54,9 @@
   --shadow-md: 0 2px 8px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
   --shadow-lg: 0 8px 28px rgba(0,0,0,.10), 0 2px 6px rgba(0,0,0,.05);
 
-  /* accent 作"文字"用时必须比填充色更深 — 橘色在浅底上作文字达不到 AA.
-     实测在淡橘底上: #FB8C00 仅 2.16:1, #B33B0A 为 5.31:1 (hover 态 5.04:1) */
-  --accent-text: #B33B0A;
-
   /* 动画曲线 */
-  --spring:   cubic-bezier(0.34, 1.56, 0.64, 1);   /* 过冲, 只给"提交"类瞬间 */
-  --ease:     cubic-bezier(0.4, 0.0, 0.2, 1);
-  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);      /* 快起慢收, 按压反馈 */
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease:   cubic-bezier(0.4, 0.0, 0.2, 1);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -70,8 +65,6 @@
     --accent-hover:  #9A3412;
     --accent-press:  #7C2D12;
     --on-accent:     #FFFFFF;
-    /* 深色下反过来: 文字要比填充更亮 (实测 5.75:1) */
-    --accent-text:   #FB923C;
 
     --success: #4ADE80;
     --warning: #FCD34D;
@@ -207,16 +200,12 @@ button {
   border: none;
   border-radius: var(--r-sm);
   cursor: pointer;
-  /* 按压反馈用 ease-out 不用弹簧: 过冲留给有动量的手势,
-     按下去应该是脆的, 松手弹一下会显得松散 */
-  transition: transform .13s var(--ease-out),
+  transition: transform .16s var(--spring),
               background-color .16s var(--ease),
-              box-shadow .18s var(--ease-out),
-              color .16s var(--ease),            /* 主按钮灰↔橘时文字同步过渡 */
-              opacity .16s var(--ease);          /* disabled 渐变, 不硬切 */
+              box-shadow .16s var(--ease);
   -webkit-tap-highlight-color: transparent;
 }
-button:active:not(:disabled) { transform: scale(.97); }
+button:active:not(:disabled) { transform: scale(.96); }
 button:disabled { cursor: default; opacity: .5; }
 
 .btn-plain {
@@ -227,10 +216,6 @@ button:disabled { cursor: default; opacity: .5; }
 }
 .btn-plain:hover:not(:disabled) { background: rgba(118,118,128,.16); }
 
-/* ── 主按钮 ──
-   两个状态: 无勾选 = 灰(真禁用), 有勾选 = 橘.
-   状态指示靠"填充色变化", 不靠发光/放大 —— 灰变橘的感知差
-   远大于阴影加深, 而且不需要任何装饰. */
 .btn-accent {
   background: var(--accent);
   color: var(--on-accent);
@@ -238,51 +223,12 @@ button:disabled { cursor: default; opacity: .5; }
   font-size: 13px;
   font-weight: 600;
   box-shadow: 0 1px 3px rgba(251,140,0,.32);
-  /* 顶边高光: 光落在材质上边缘, 静态 */
-  border-top: 0.5px solid rgba(255, 255, 255, 0.3);
 }
-
-/* 禁用态: 用中性灰而不是全局的 opacity:.5 ——
-   半透明的橘色发闷, 灰底才读得出"这里现在没得点" */
-.btn-accent:disabled {
-  background: var(--bg-inset);
-  /* 用 secondary 不用 tertiary: 禁用控件虽然豁免对比度要求,
-     但这是主操作的标签, 得看得懂它是干什么的 (2.55:1 → 4.51:1) */
-  color: var(--fg-secondary);
-  box-shadow: none;
-  border-top-color: transparent;
-  opacity: 1;              /* 覆盖 button:disabled 的 .5 */
-}
-
 .btn-accent:hover:not(:disabled) {
   background: var(--accent-hover);
   box-shadow: 0 2px 8px rgba(251,140,0,.4);
 }
-.btn-accent:active:not(:disabled) {
-  background: var(--accent-press);
-}
-
-.btn-secondary {
-  position: relative;
-  background: rgba(251, 140, 0, 0.10);
-  color: var(--accent-text);          /* 不是 --accent: 那个作文字只有 2.16:1 */
-  padding: 6px 12px;
-  font-size: 12px;
-  font-weight: 500;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  /* 顶边高光 — 光打在材质上的暗示, 静态但提升可按性 */
-  border-top: 0.5px solid rgba(251, 140, 0, 0.22);
-}
-.btn-secondary svg { flex-shrink: 0; }
-/* hover 只加深底色, 不动文字色 — 免得把实测过的对比度改坏 */
-.btn-secondary:hover:not(:disabled) { background: rgba(251, 140, 0, 0.16); }
-.btn-secondary:disabled {
-  color: var(--fg-tertiary);
-  background: transparent;
-  border-top-color: transparent;
-}
+.btn-accent:active:not(:disabled) { background: var(--accent-press); }
 
 .btn-ghost {
   background: transparent;
@@ -367,7 +313,6 @@ button:disabled { cursor: default; opacity: .5; }
   overflow-x: hidden;
   padding: 6px;
   scroll-behavior: smooth;
-  position: relative;   /* 供 .row-leave-active 的绝对定位锚定 */
 }
 .list::-webkit-scrollbar { width: 10px; }
 .list::-webkit-scrollbar-thumb {
@@ -503,58 +448,12 @@ button:disabled { cursor: default; opacity: .5; }
   50%      { opacity: 1;  transform: scale(1.1); }
 }
 
-/* ── 行进出动画 ──
-   进出走同一条路径 (上方 6px + 透明), 符合空间一致性:
-   从哪来, 回哪去. 只动 transform / opacity 两个合成器属性. */
-.row-enter-active,
-.row-leave-active { transition: opacity .22s var(--ease), transform .22s var(--ease); }
-.row-enter-from,
-.row-leave-to     { opacity: 0; transform: translateY(-6px); }
-/* 离场行脱离布局流, 否则会和入场行抢位置导致抖动 */
-.row-leave-active { position: absolute; width: 100%; }
-.row-move         { transition: transform .22s var(--ease); }
+/* 行进入动画 */
+.row-enter-active { transition: all .3s var(--spring); }
+.row-enter-from   { opacity: 0; transform: translateY(-6px); }
+.row-move         { transition: transform .3s var(--spring); }
 
-/* ── 无障碍: 三个独立信号 ── */
+/* 状态文字切换动画 */
+.fade-enter-active, .fade-leave-active { transition: opacity .18s var(--ease); }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
 
-/* 降低动态效果: 不是"关掉动效", 而是换成不引发前庭反应的等价物
-   —— 保留不透明度变化 (帮助理解状态), 去掉位移和过冲 */
-@media (prefers-reduced-motion: reduce) {
-  button:active:not(:disabled) { transform: none; }
-
-  .row-enter-active,
-  .row-leave-active,
-  .row-move { transition: opacity .15s var(--ease); }
-  .row-enter-from,
-  .row-leave-to { transform: none; }
-
-  .cb .box,
-  .cb .box svg,
-  .cb .box::after { transition: opacity .12s var(--ease); }
-  .cb input:not(:checked) + .box svg,
-  .cb input:not(:indeterminate) + .box::after { transform: none; }
-
-  /* 无限循环的脉冲最容易造成不适, 换成静态可见 */
-  .dot { animation: none; opacity: 1; }
-}
-
-/* 降低透明度: 毛玻璃换成实色, 去掉 blur */
-@media (prefers-reduced-transparency: reduce) {
-  .card {
-    background: var(--bg);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    border: 1px solid var(--separator);
-  }
-  body::before { display: none; }   /* 背景光晕也一并去掉 */
-}
-
-/* 高对比度: 近实色背景 + 明确边框 */
-@media (prefers-contrast: more) {
-  .card {
-    background: var(--bg);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    border: 1px solid var(--fg-secondary);
-  }
-  .cb .box { border-color: var(--fg); }
-}

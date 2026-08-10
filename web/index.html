@@ -45,7 +45,14 @@
         </span>
         <span>全选</span>
       </label>
-      <button class="btn-ghost" @click="openOut" v-if="pdfDir">打开输出文件夹</button>
+      <button class="btn-secondary" @click="openOut" :disabled="!pdfDir" v-show="inputDir">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+          <polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+        打开输出文件夹
+      </button>
       <button class="btn-ghost" @click="openLog">查看日志</button>
       <span class="count" v-if="files.length">共 {{ files.length }} 个文件</span>
     </div>
@@ -89,7 +96,7 @@
   <div class="card footer">
     <div class="track"><div class="fill" :style="{ width: pct + '%' }"></div></div>
     <span class="pct">{{ counter }}</span>
-    <button class="btn-accent" @click="start" :disabled="busy">
+    <button class="btn-accent" @click="start" :disabled="!canStart">
       {{ busy ? '转换中…' : '开始转换' }}
     </button>
   </div>
@@ -126,6 +133,9 @@ const app = createApp({
     counter() { return this.total ? `${this.done}/${this.total}` : '' },
     picked() { return this.files.filter(f => f.sel) },
     allChecked() { return this.files.length > 0 && this.files.every(f => f.sel) },
+    // 就绪态: 和 start() 的实际前提保持一致 —— 勾选了但全是损坏文件时不该亮,
+    // 否则按钮在撒谎
+    canStart() { return !this.busy && this.picked.some(f => f.total > 0) },
   },
 
   watch: {
@@ -161,7 +171,7 @@ const app = createApp({
       const list = await window.pywebview.api.scan_folder(dir)
       this.files = list.map(f => ({
         ...f,
-        sel: true,
+        sel: false,          // 默认不勾选: 让"开始转换"从禁用态起步, 变化才可感知
         stTxt: f.total === 0 ? '⚠ 损坏' : '',
         stCls: f.total === 0 ? 'error' : '',
       }))
@@ -178,7 +188,9 @@ const app = createApp({
       const n = this.picked.length
       const bad = this.picked.filter(f => f.total === 0).length
       if (!all) return
-      if (n === 0) this.say(`共 ${all} 个文件，未勾选任何文件`, 'warning')
+      // 未勾选是默认起点而非问题, 用中性色给引导; 亮黄色留给真正的异常
+      if (n === 0) this.say(`共 ${all} 个文件，勾选后开始转换`)
+      else if (bad === n) this.say(`已选 ${n} 个，但都无法识别`, 'warning')
       else if (bad) this.say(`已选 ${n}/${all} 个，其中 ${bad} 个无法识别（将跳过）`, 'warning')
       else if (n === all) this.say(`已选全部 ${all} 个文件`)
       else this.say(`已选 ${n}/${all} 个文件`)
