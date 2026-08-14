@@ -9,24 +9,43 @@
 
 <div id="app">
 
-  <div class="titlebar">
-    <h1>PRT → PDF</h1>
+  <!-- Hero -->
+  <div class="hero">
+    <div class="logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+        <polyline points="14 2 14 8 20 8"></polyline>
+        <path d="M12 18v-6"></path>
+        <path d="M9 15l3 3 3-3"></path>
+      </svg>
+    </div>
+    <div class="titles">
+      <h1>PRT → PDF</h1>
+      <span class="sub">HWAS 练习卷转换工具</span>
+    </div>
   </div>
 
   <!-- 路径选择 -->
   <div class="card paths">
     <div class="path-row">
-      <label>作业文件夹</label>
-      <input :value="inputDir" readonly placeholder="选择存放 .prt 文件的目录">
+      <div class="icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+      </div>
+      <div class="field">
+        <label>作业文件夹</label>
+        <input :value="inputDir" readonly placeholder="选择存放 .prt 文件的目录">
+      </div>
       <button class="btn-plain" @click="pickInput" :disabled="busy">浏览</button>
     </div>
     <div class="path-row">
-      <label>输出目录</label>
-      <input :value="outputDir" readonly placeholder="默认与作业文件夹相同">
+      <div class="icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+      </div>
+      <div class="field">
+        <label>输出目录</label>
+        <input :value="outputDir" readonly placeholder="默认与作业文件夹相同，PDF 会存到 practice 子文件夹">
+      </div>
       <button class="btn-plain" @click="pickOutput" :disabled="busy">浏览</button>
-    </div>
-    <div class="path-hint">
-      PDF 会存到所选目录下的 <code>practice\</code> 文件夹
     </div>
   </div>
 
@@ -40,20 +59,18 @@
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
             <path d="M1.5 5.2L3.8 7.5L8.5 2.5" stroke="currentColor"
                   stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
-                  style="color: var(--on-accent)"/>
+                  style="color: var(--on-brand)"/>
           </svg>
         </span>
         <span>全选</span>
       </label>
-      <button class="btn-secondary" @click="openOut" :disabled="!pdfDir" v-show="inputDir">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
-          <polyline points="9 22 9 12 15 12 15 22"/>
-        </svg>
-        打开输出文件夹
-      </button>
-      <button class="btn-ghost" @click="openLog">查看日志</button>
+      <div class="actions">
+        <button class="btn-secondary" @click="openOut" :disabled="!pdfDir" v-show="inputDir">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+          打开输出文件夹
+        </button>
+        <button class="btn-ghost" @click="openLog">查看日志</button>
+      </div>
       <span class="count" v-if="files.length">共 {{ files.length }} 个文件</span>
     </div>
 
@@ -67,16 +84,20 @@
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
                 <path d="M1.5 5.2L3.8 7.5L8.5 2.5" stroke="currentColor"
                       stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
-                      style="color: var(--on-accent)"/>
+                      style="color: var(--on-brand)"/>
               </svg>
             </span>
           </label>
           <span class="name" :title="f.filename">{{ f.filename }}</span>
-          <span class="secs" v-if="f.total">
-            选择 {{ f.section_counts[0] }} · 填空 {{ f.section_counts[1] }} · 解答 {{ f.section_counts[2] }}
-          </span>
-          <span class="secs st error" v-else>⚠ 无法识别</span>
-          <span class="title" :title="f.title">{{ f.title }}</span>
+          <span class="title" :title="f.title">{{ f.title || '—' }}</span>
+          <div class="meta">
+            <template v-if="f.total">
+              <span class="pill choice" v-if="f.section_counts[0]">选择 {{ f.section_counts[0] }}</span>
+              <span class="pill blank"  v-if="f.section_counts[1]">填空 {{ f.section_counts[1] }}</span>
+              <span class="pill comp"   v-if="f.section_counts[2]">解答 {{ f.section_counts[2] }}</span>
+            </template>
+            <span class="pill bad" v-else>无法识别</span>
+          </div>
           <span class="size">{{ kb(f.file_size) }}</span>
           <span class="st" :class="f.stCls">{{ f.stTxt }}</span>
         </div>
@@ -84,11 +105,14 @@
     </div>
 
     <div class="empty" v-else>
-      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
-        <path d="M4 6a2 2 0 012-2h4l2 2h6a2 2 0 012 2v9a2 2 0 01-2 2H6a2 2 0 01-2-2V6z"
-              stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-      <span>{{ emptyHint }}</span>
+      <div class="empty-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 6a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6z"></path>
+        </svg>
+      </div>
+      <div class="primary">{{ empty.primary }}</div>
+      <div class="secondary">{{ empty.secondary }}</div>
+      <div class="hint">{{ empty.hint }}</div>
     </div>
   </div>
 
@@ -124,7 +148,11 @@ const app = createApp({
       total: 0,
       stTxt: '选择作业文件夹开始',
       stCls: '',
-      emptyHint: '尚未选择作业文件夹',
+      empty: {
+        primary: '尚未选择作业文件夹',
+        secondary: '点击上方「浏览」选择存放 .prt 文件的目录',
+        hint: '支持 .prt 格式',
+      },
     }
   },
 
@@ -172,11 +200,15 @@ const app = createApp({
       this.files = list.map(f => ({
         ...f,
         sel: false,          // 默认不勾选: 让"开始转换"从禁用态起步, 变化才可感知
-        stTxt: f.total === 0 ? '⚠ 损坏' : '',
+        stTxt: f.total === 0 ? '✗ 损坏' : '',
         stCls: f.total === 0 ? 'error' : '',
       }))
       if (!this.files.length) {
-        this.emptyHint = '该文件夹下没有 .prt 文件'
+        this.empty = {
+          primary: '该文件夹下没有 .prt 文件',
+          secondary: '换个目录试试，或把 .prt 文件放到这个文件夹',
+          hint: '支持 .prt 格式',
+        }
         this.say('该文件夹下没有 .prt 文件', 'warning')
       } else {
         this.refreshStatus()
